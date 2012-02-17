@@ -29,15 +29,73 @@ in the properties file. The comment must match the regular expression
 """
 import codecs
 import re
+import os
 
-class Translations(object):
+class BaseTranslations(object):
+    """
+    This class defines a dummy translations class that simply
+    maps any message to itself. It is also used as a base class
+    for real Translations classes and thus defines the interface
+    of the Translations classes from this module. 
+
+    The class mimics the interface of the standard 
+    :class:`gettext.NullTranslations` class as far as reasonable.  
+    """
+
+    _fallback = None
+
+    def add_fallback(self, fallback):
+        """
+        Add *fallback* as the fallback object for the current 
+        translation object. A translation consults 
+        the fallback if it cannot provide a translation for a given message.
+        (Identical to :class:`gettext.NullTranslations` from the standard
+        library.)
+        """
+        if self._fallback:
+            self._fallback.add_fallback(fallback)
+        else:
+            self._fallback = fallback
+
+    def ugettext(self, message):
+        """
+        Return the translated message if defined in the instance's
+        dictionary, else forward the call to the fallback (if set).
+        This class simply returns the message.
+        """
+        if self._fallback:
+            return self._fallback.ugettext(message)
+        return unicode(message)
+    
+    def gettext(self, message):
+        """
+        Return the translated message converted to the str type
+        (i.e. returns ``str(self.ugettext(message))``. This
+        method is only provided for compatibility with
+        :class:`gettext.NullTranslations`. In the context of
+        internationalization, unicode strings should always be
+        preferred to byte strings.
+        """
+        return str(self.ugettext(message))
+
+
+class Translations(BaseTranslations):
+    """
+    The Translations class that takes its dictionary from a properties
+    file object.
+    """
 
     _codingRegex = re.compile("coding[:=]\s*([-\w.]+)")
 
-    def __init__(self, fp):
+    def __init__(self, fp, fallback=None):
+        self._fallback = fallback
         self._translations = self._parse(fp)
         
     def _parse(self, fp):
+        """
+        Parse the file object *fp* as a properties file and insert
+        the key value pairs found in this instance's dictionary.
+        """
         res = dict()
         key = u""
         value = u""
@@ -119,3 +177,58 @@ class Translations(object):
                 pending_ws = ""
 
         return res
+
+    def ugettext(self, message):
+        """
+        Return the translated message if defined in the properties
+        file read by this instance, else forward the call to the 
+        fallback (if set).
+        """
+        if self._translations.has_key(message):
+            return self._translations[message]
+        return super(Translations, self).ugettext(message)
+
+
+def translation(basename, localedir, languages):
+    """
+    Return a :class:Translations instance that is based on the
+    properties files with the given *basename* in the directory
+    *localedir*. As a convenience, *localedir* may be the name of
+    a directory or the name of a file in a directory. This allows
+    ``__file__`` to be passed without any modification if the
+    properties files reside in the same directory as the python
+    module that requests translations.
+    
+    The third parameter *languages* is a list of strings that
+    specifies acceptable languages for mappings.
+    """
+    trans = None
+    localedir = os.path.abspath(localedir)
+    if os.path.isfile(localedir):
+        localedir = os.path.dirname(localedir)
+    for lang in languages:
+        lang.replace("-", "_")
+        while True:
+            props_file = os.path.join\
+                (localedir, basename + "_" + lang + ".properties")
+            try:
+                with open(props_file) as fp:
+                    if trans:
+                        trans.add_fallback(Translations(fp))
+                    else:
+                        trans = Translations(fp)
+            except IOError:
+                pass
+            lang_up = lang.rsplit("_", 1)[0]
+            if lang_up == lang:
+                break
+            lang = lang_up
+    if trans:
+        trans.add_fallback(BaseTranslations())
+    else:
+        trans = BaseTranslations()
+    return trans
+
+
+__all__ = (BaseTranslations, Translations, translation)
+

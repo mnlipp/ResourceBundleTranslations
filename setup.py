@@ -10,11 +10,11 @@ def read(fname):
 
 setup(
     name = "Resource Bundle Translations",
-    version = "0.0.1",
+    version = "0.1",
     author = "Michael N. Lipp",
     author_email = "mnl@mnl.de",
     description = ("Java ResourceBundle like approach to localization."),
-    license = "BSD",
+    license = "MIT",
     keywords = "ResourceBundle Translations i18n l10n internationalization",
     url = "http://packages.python.org/RBTranslations",
     packages=['tests'],

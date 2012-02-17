@@ -5,13 +5,8 @@
 Welcome to Resource Bundle Translations's documentation!
 ========================================================
 
-Contents:
-
-.. toctree::
-   :maxdepth: 2
-
 .. automodule:: rbtranslations
-   :members:
+   :members: BaseTranslations, Translations, translation
 
 Indices and tables
 ==================

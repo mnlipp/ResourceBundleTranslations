@@ -5,7 +5,7 @@
 import unittest
 import os
 from rbtranslations import Translations
-import codecs
+import rbtranslations
 
 class Test(unittest.TestCase):
 
@@ -29,6 +29,13 @@ class Test(unittest.TestCase):
             res = Translations(fp)
         self.assertEqual(res._translations[u"π"], "pi")
         self.assertEqual(res._translations["umlaute"], u"äöüÄÖÜ")
+
+    def testBundle(self):
+        trans = rbtranslations.translation("test", __file__, ["de_AT", "fr"])
+        self.assertEqual(trans.ugettext("pancake"), "Palatschinken")
+        self.assertEqual(trans.ugettext("mobile phone"), "Handy")
+        self.assertEqual(trans.ugettext("computer"), "ordinateur")
+        self.assertEqual(trans.ugettext("unknown"), "unknown")
 
 
 if __name__ == "__main__":
