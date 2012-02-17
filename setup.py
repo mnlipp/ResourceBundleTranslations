@@ -18,7 +18,7 @@ setup(
     keywords = "ResourceBundle Translations i18n l10n internationalization",
     url = "http://packages.python.org/RBTranslations",
     packages=['tests'],
-    package_data={'tests': ['*.rbprops']},
+    package_data={'tests': ['*.properties']},
     py_modules=['rbtranslations'],
     long_description=read('README'),
     classifiers=[
