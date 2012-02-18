@@ -3,7 +3,7 @@
    This file is part of the Resource Bundle Translations package.
    Copyright (C) 2012 Michael N. Lipp
 
-.. codeauthor:: mnl
+.. moduleauthor:: Michael N. Lipp
 
 Purpose of this module
 ======================
@@ -18,6 +18,9 @@ in applications with a limited number of texts.
 I looked for a good alternative for quite some time, but didn't
 find one. So I decided to port the Java ResourceBundle approach
 to Python, with some minor adaptations.
+
+Usage
+=====
 
 The translations are stored in files with the same format as
 Java properties files. As an extension, utf-8 encoded properties
@@ -42,6 +45,8 @@ of the methods provided by the built-in :class:`gettext.NullTranslations`.
 import codecs
 import re
 import os
+
+__version__ = "0.1"
 
 __all__ = ["BaseTranslations", "Translations", "translation"]
 

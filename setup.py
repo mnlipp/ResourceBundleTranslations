@@ -8,9 +8,11 @@ from setuptools import setup
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
+import rbtranslations
+
 setup(
     name = "rbtranslations",
-    version = "0.1",
+    version = rbtranslations.__version__,
     author = "Michael N. Lipp",
     author_email = "mnl@mnl.de",
     description = ("Java ResourceBundle like approach to localization."),
@@ -20,7 +22,7 @@ setup(
     packages=['tests'],
     package_data={'tests': ['*.properties']},
     py_modules=['rbtranslations'],
-    long_description=read('README'),
+    long_description=read('pypi-overview.rst'),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Topic :: Software Development :: Internationalization",
