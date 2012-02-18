@@ -23,7 +23,7 @@ setup(
     long_description=read('README'),
     classifiers=[
         "Development Status :: 3 - Alpha",
-        "Topic :: Utilities",
+        "Topic :: Software Development :: Internationalization",
         "License :: OSI Approved :: MIT License",
     ],
 )

@@ -6,7 +6,7 @@ Welcome to Resource Bundle Translations's documentation!
 ========================================================
 
 .. automodule:: rbtranslations
-   :members: BaseTranslations, Translations, translation
+   :members:
 
 Indices and tables
 ==================

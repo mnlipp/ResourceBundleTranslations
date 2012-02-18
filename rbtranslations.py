@@ -10,9 +10,10 @@ Purpose of this module
 
 When I got started with python, I found the "standard" way of 
 getting localized texts with :mod:`gettext` rather complicated.
-Besides having a compilation step from po-files to mo-files, my
-application would also have to install the mo-files eventually
-in a system directory.
+The directory layout and especially the extra compilation step 
+from po-files to mo-files is very annoying and in my opinion 
+not compensated by having smaller mapping files, at least not 
+in applications with a limited number of texts. 
 
 I looked for a good alternative for quite some time, but didn't
 find one. So I decided to port the Java ResourceBundle approach
@@ -20,16 +21,29 @@ to Python, with some minor adaptations.
 
 The translations are stored in files with the same format as
 Java properties files. As an extension, utf-8 encoded properties
-files are support (Java defines iso-8859-1 as standard encoding for
-properties files. The encoding can be specified as for python
+files are supported (Java defines iso-8859-1 as standard encoding for
+properties files). The encoding can be specified as in python
 source files by adding a magic comment as first or second line
 in the properties file. The comment must match the regular expression
-``coding[:=]\s*([-\w.]+)`` to be recognized (e.g. "``coding: utf-8``".
- 
+``coding[:=]\s*([-\w.]+)`` to be recognized (i.e. "``coding: utf-8``").
+You may also use different encodings as long as they are supported
+by the :mod:`codecs` module and use "\\\\n" as a line
+separator.
+
+Keys in properties files may contain spaces. This allows using the
+default translation to be used as key as you usually do with gettext.
+Escaped spaces ("\\\\ ") are treated like regular characters and can
+be used to define keys or values that have leading or trailing spaces. 
+
+Translations are obtained by calling :func:`rbtranslations.translation`.
+The returned :class:`rbtranslations.Translations` provide a subset
+of the methods provided by the built-in :class:`gettext.NullTranslations`.
 """
 import codecs
 import re
 import os
+
+__all__ = ["BaseTranslations", "Translations", "translation"]
 
 class BaseTranslations(object):
     """
@@ -39,16 +53,21 @@ class BaseTranslations(object):
     of the Translations classes from this module. 
 
     The class mimics the interface of the standard 
-    :class:`gettext.NullTranslations` class as far as reasonable.  
+    :class:`gettext.NullTranslations` class as far as reasonable.
+    Handling of encodings has drastically been reduced. With unicode
+    strings being available, the only reasonable approach is
+    to get the translated messages using this type. If other encodings
+    are required for further processing, they should be applied when
+    interfacing with the components that require these encodings. 
     """
 
     _fallback = None
 
     def add_fallback(self, fallback):
         """
-        Add *fallback* as the fallback object for the current 
-        translation object. A translation consults 
-        the fallback if it cannot provide a translation for a given message.
+        Append *fallback* to the chain of fallbacks for the current 
+        translation object. A translation object consults 
+        its fallback if it cannot provide a translation for a given message.
         (Identical to :class:`gettext.NullTranslations` from the standard
         library.)
         """
@@ -61,22 +80,15 @@ class BaseTranslations(object):
         """
         Return the translated message if defined in the instance's
         dictionary, else forward the call to the fallback (if set).
-        This class simply returns the message.
+        :class:`BaseTranslations` simply returns the message.
         """
         if self._fallback:
             return self._fallback.ugettext(message)
         return unicode(message)
     
     def gettext(self, message):
-        """
-        Return the translated message converted to the str type
-        (i.e. returns ``str(self.ugettext(message))``. This
-        method is only provided for compatibility with
-        :class:`gettext.NullTranslations`. In the context of
-        internationalization, unicode strings should always be
-        preferred to byte strings.
-        """
-        return str(self.ugettext(message))
+        """ An alias for ugettext. """
+        return self.ugettext(message)
 
 
 class Translations(BaseTranslations):
@@ -191,8 +203,8 @@ class Translations(BaseTranslations):
 
 def translation(basename, localedir, languages):
     """
-    Return a :class:Translations instance that is based on the
-    properties files with the given *basename* in the directory
+    Return a chain of :class:`Translations` instances that are created 
+    from the properties files with the given *basename* in the directory
     *localedir*. As a convenience, *localedir* may be the name of
     a directory or the name of a file in a directory. This allows
     ``__file__`` to be passed without any modification if the
@@ -201,6 +213,19 @@ def translation(basename, localedir, languages):
     
     The third parameter *languages* is a list of strings that
     specifies acceptable languages for mappings.
+    
+    The chain of :class:`Translations` is found by searching, for
+    each language, for properties files "*basename.lang_spec*.properties".
+    The *lang_spec* part is initially the string from the the current
+    element of *languages*. Then a trailing "_..." part is removed
+    and the lookup is repeated until only the basic language identifier
+    remains (e.g. "de_DE_var1", "de_DE", "de"). Finally, a file
+    "*basename*.properties" is searched for. Any matching properties file
+    is converted to a :class:`Translations` instance that is added as
+    fallback to the first instance that has been found. Finally,
+    an instance of :class:`BaseTranslations` is added as fallback
+    and the :class:`Translations` instance at the beginning of the
+    chain is returned.
     """
     trans = None
     localedir = os.path.abspath(localedir)
@@ -228,7 +253,4 @@ def translation(basename, localedir, languages):
     else:
         trans = BaseTranslations()
     return trans
-
-
-__all__ = (BaseTranslations, Translations, translation)
 

@@ -31,11 +31,12 @@ class Test(unittest.TestCase):
         self.assertEqual(res._translations["umlaute"], u"äöüÄÖÜ")
 
     def testBundle(self):
-        trans = rbtranslations.translation("test", __file__, ["de_AT", "fr"])
-        self.assertEqual(trans.ugettext("pancake"), "Palatschinken")
+        trans = rbtranslations.translation("test", __file__, ["de_AT", "fr_FR"])
+        self.assertEqual(trans.gettext("pancake"), "Palatschinken")
         self.assertEqual(trans.ugettext("mobile phone"), "Handy")
         self.assertEqual(trans.ugettext("computer"), "ordinateur")
         self.assertEqual(trans.ugettext("unknown"), "unknown")
+        self.assertEqual(trans.gettext("Result = "), "Ergebnis = ")
 
 
 if __name__ == "__main__":
