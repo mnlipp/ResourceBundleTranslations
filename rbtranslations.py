@@ -45,6 +45,7 @@ of the methods provided by the built-in :class:`gettext.NullTranslations`.
 import codecs
 import re
 import os
+import threading
 
 __version__ = "0.1"
 
@@ -103,6 +104,8 @@ class Translations(BaseTranslations):
     """
 
     _codingRegex = re.compile("coding[:=]\s*([-\w.]+)")
+    _cache_lock = threading.Lock()
+    _cache = dict()
 
     def __init__(self, fp, fallback=None):
         self._fallback = fallback
@@ -232,30 +235,35 @@ def translation(basename, localedir, languages):
     and the :class:`Translations` instance at the beginning of the
     chain is returned.
     """
-    trans = None
-    localedir = os.path.abspath(localedir)
-    if os.path.isfile(localedir):
-        localedir = os.path.dirname(localedir)
-    for lang in languages:
-        lang.replace("-", "_")
-        while True:
-            props_file = os.path.join\
-                (localedir, basename + "_" + lang + ".properties")
-            try:
-                with open(props_file) as fp:
-                    if trans:
-                        trans.add_fallback(Translations(fp))
-                    else:
-                        trans = Translations(fp)
-            except IOError:
-                pass
-            lang_up = lang.rsplit("_", 1)[0]
-            if lang_up == lang:
-                break
-            lang = lang_up
-    if trans:
-        trans.add_fallback(BaseTranslations())
-    else:
-        trans = BaseTranslations()
-    return trans
+    with Translations._cache_lock:
+        lang_hash = ";".join(languages)
+        trans = Translations._cache.get((basename, localedir, lang_hash), None)
+        if trans:
+            return trans
+        localedir = os.path.abspath(localedir)
+        if os.path.isfile(localedir):
+            localedir = os.path.dirname(localedir)
+        for lang in languages:
+            lang.replace("-", "_")
+            while True:
+                props_file = os.path.join\
+                    (localedir, basename + "_" + lang + ".properties")
+                try:
+                    with open(props_file) as fp:
+                        if trans:
+                            trans.add_fallback(Translations(fp))
+                        else:
+                            trans = Translations(fp)
+                except IOError:
+                    pass
+                lang_up = lang.rsplit("_", 1)[0]
+                if lang_up == lang:
+                    break
+                lang = lang_up
+        if trans:
+            trans.add_fallback(BaseTranslations())
+        else:
+            trans = BaseTranslations()
+        Translations._cache[(basename, localedir, lang_hash)] = trans    
+        return trans
 
