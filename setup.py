@@ -24,7 +24,7 @@ setup(
     py_modules=['rbtranslations'],
     long_description=read('pypi-overview.rst'),
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Topic :: Software Development :: Internationalization",
         "License :: OSI Approved :: MIT License",
     ],

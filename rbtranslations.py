@@ -47,7 +47,7 @@ import re
 import os
 import threading
 
-__version__ = "0.1"
+__version__ = "0.9"
 
 __all__ = ["BaseTranslations", "Translations", "translation"]
 
@@ -77,8 +77,24 @@ class BaseTranslations(object):
         (Identical to :class:`gettext.NullTranslations` from the standard
         library.)
         """
+        with Translations._cache_lock:
+            for key, value in Translations._cache.items():
+                if id(self) == id(value):
+                    del Translations._cache[key]
+                    break
         if self._fallback:
             self._fallback.add_fallback(fallback)
+        else:
+            self._fallback = fallback
+
+    def _add_fallback_unchecked(self, fallback):
+        """
+        An internal version of :meth:`add_fallback` that doesn't check
+        if the translation is chached. This may only be used when constructing
+        a new translation chain.
+        """
+        if self._fallback:
+            self._fallback._add_fallback_unchecked(fallback)
         else:
             self._fallback = fallback
 
@@ -104,7 +120,7 @@ class Translations(BaseTranslations):
     """
 
     _codingRegex = re.compile("coding[:=]\s*([-\w.]+)")
-    _cache_lock = threading.Lock()
+    _cache_lock = threading.RLock()
     _cache = dict()
 
     def __init__(self, fp, fallback=None):
@@ -234,6 +250,10 @@ def translation(basename, localedir, languages):
     an instance of :class:`BaseTranslations` is added as fallback
     and the :class:`Translations` instance at the beginning of the
     chain is returned.
+    
+    The result is cached in a global, thread-safe cache. If the
+    result is modified by calling :meth:`.add_fallback` on it,
+    it is automatically removed from the cache.
     """
     with Translations._cache_lock:
         lang_hash = ";".join(languages)
@@ -251,7 +271,7 @@ def translation(basename, localedir, languages):
                 try:
                     with open(props_file) as fp:
                         if trans:
-                            trans.add_fallback(Translations(fp))
+                            trans._add_fallback_unchecked(Translations(fp))
                         else:
                             trans = Translations(fp)
                 except IOError:
@@ -261,7 +281,7 @@ def translation(basename, localedir, languages):
                     break
                 lang = lang_up
         if trans:
-            trans.add_fallback(BaseTranslations())
+            trans._add_fallback_unchecked(BaseTranslations())
         else:
             trans = BaseTranslations()
         Translations._cache[(basename, localedir, lang_hash)] = trans    
