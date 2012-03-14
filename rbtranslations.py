@@ -47,7 +47,7 @@ import re
 import os
 import threading
 
-__version__ = "0.9"
+__version__ = "0.9.1"
 
 __all__ = ["BaseTranslations", "Translations", "translation"]
 
@@ -90,7 +90,7 @@ class BaseTranslations(object):
     def _add_fallback_unchecked(self, fallback):
         """
         An internal version of :meth:`add_fallback` that doesn't check
-        if the translation is chached. This may only be used when constructing
+        if the translation is cached. This may only be used when constructing
         a new translation chain.
         """
         if self._fallback:
@@ -225,11 +225,11 @@ class Translations(BaseTranslations):
         return super(Translations, self).ugettext(message)
 
 
-def translation(basename, localedir, languages):
+def translation(basename, props_dir, languages, key_language=None):
     """
     Return a chain of :class:`Translations` instances that are created 
     from the properties files with the given *basename* in the directory
-    *localedir*. As a convenience, *localedir* may be the name of
+    *props_dir*. As a convenience, *props_dir* may be the name of
     a directory or the name of a file in a directory. This allows
     ``__file__`` to be passed without any modification if the
     properties files reside in the same directory as the python
@@ -247,27 +247,53 @@ def translation(basename, localedir, languages):
     "*basename*.properties" is searched for. Any matching properties file
     is converted to a :class:`Translations` instance that is added as
     fallback to the first instance that has been found. Finally,
-    an instance of :class:`BaseTranslations` is added as fallback
+    an instance of :class:`BaseTranslations` is added as fall back
     and the :class:`Translations` instance at the beginning of the
     chain is returned.
     
-    The result is cached in a global, thread-safe cache. If the
-    result is modified by calling :meth:`.add_fallback` on it,
-    it is automatically removed from the cache.
+    The gettext key/value mapping assumes that the keys themselves
+    are a valid translation for a single given language. Building the
+    translation chain as described above, however, make them the last
+    resort, preferring any match for the given *languages* over
+    using the keys as translations. This behavior can be changed by
+    specifying the *key_language*. If specified, using the the keys as
+    translations is considered equivalent to a file 
+    "*basename.key_locale*.properties". If both a *key_language* is 
+    specified and a file "*basename.key_language*.properties" exists,
+    translations from the file override the key values. This allows
+    easy fixing of single mappings without changing the program's code.
+    
+    The resulting chain of :class:`Translations` is cached in a global,
+    thread-safe cache. If the result is modified by calling 
+    :meth:`.add_fallback` on its head, it is automatically removed 
+    from the cache.
     """
     with Translations._cache_lock:
         lang_hash = ";".join(languages)
-        trans = Translations._cache.get((basename, localedir, lang_hash), None)
+        trans = Translations._cache.get((basename, props_dir, lang_hash), None)
         if trans:
             return trans
-        localedir = os.path.abspath(localedir)
-        if os.path.isfile(localedir):
-            localedir = os.path.dirname(localedir)
+        # Normalize languages
+        langs_norm = []
         for lang in languages:
-            lang.replace("-", "_")
+            parts = lang.replace("-", "_").split("_")
+            if len(parts) > 1:
+                parts[1] = parts[1].upper()
+            langs_norm.append("_".join(parts))
+        lang_norm_hash = ";".join(langs_norm)
+        trans = Translations._cache.get\
+            ((basename, props_dir, lang_norm_hash), None)
+        if trans:
+            Translations._cache[lang_hash] = trans # quicker next time
+            return trans
+        props_dir = os.path.abspath(props_dir)
+        if os.path.isfile(props_dir):
+            props_dir = os.path.dirname(props_dir)
+        stop_searching = False
+        for lang in langs_norm:
             while True:
                 props_file = os.path.join\
-                    (localedir, basename + "_" + lang + ".properties")
+                    (props_dir, basename + "_" + lang + ".properties")
                 try:
                     with open(props_file) as fp:
                         if trans:
@@ -276,14 +302,23 @@ def translation(basename, localedir, languages):
                             trans = Translations(fp)
                 except IOError:
                     pass
+                if lang == key_language:
+                    if trans:
+                        trans._add_fallback_unchecked(BaseTranslations())
+                    # else, returns BaseTranslation as result, see below
+                    stop_searching = True
+                    break;
                 lang_up = lang.rsplit("_", 1)[0]
                 if lang_up == lang:
                     break
                 lang = lang_up
+            if stop_searching:
+                break
         if trans:
             trans._add_fallback_unchecked(BaseTranslations())
         else:
             trans = BaseTranslations()
-        Translations._cache[(basename, localedir, lang_hash)] = trans    
+        Translations._cache[(basename, props_dir, lang_hash)] = trans    
+        Translations._cache[(basename, props_dir, lang_norm_hash)] = trans    
         return trans
 
