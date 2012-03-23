@@ -47,9 +47,10 @@ import re
 import os
 import threading
 
-__version__ = "0.9.1"
+__version__ = "0.9.2"
 
-__all__ = ["BaseTranslations", "Translations", "translation"]
+__all__ = ["BaseTranslations", "Translations", 
+           "translation", "available_translations"]
 
 class BaseTranslations(object):
     """
@@ -233,7 +234,7 @@ def translation(basename, props_dir, languages, key_language=None):
     a directory or the name of a file in a directory. This allows
     ``__file__`` to be passed without any modification if the
     properties files reside in the same directory as the python
-    module that requests translations.
+    module that requests translations. 
     
     The third parameter *languages* is a list of strings that
     specifies acceptable languages for mappings.
@@ -267,10 +268,19 @@ def translation(basename, props_dir, languages, key_language=None):
     thread-safe cache. If the result is modified by calling 
     :meth:`.add_fallback` on its head, it is automatically removed 
     from the cache.
+    
+    If *props_dir* is a list, translations are searched for in each
+    directory in the list as described above. Starting with the second
+    directory in the list, each translation found
+    is appended to the first translation as a fallback. 
     """
     with Translations._cache_lock:
+        # make sure we have a directory list
+        dirs = props_dir if isinstance(props_dir, list) else [props_dir]
+        # try to find in cache
         lang_hash = ";".join(languages)
-        trans = Translations._cache.get((basename, props_dir, lang_hash), None)
+        props_hash = ";".join(dirs)
+        trans = Translations._cache.get((basename, props_hash, lang_hash), None)
         if trans:
             return trans
         # Normalize languages
@@ -282,43 +292,90 @@ def translation(basename, props_dir, languages, key_language=None):
             langs_norm.append("_".join(parts))
         lang_norm_hash = ";".join(langs_norm)
         trans = Translations._cache.get\
-            ((basename, props_dir, lang_norm_hash), None)
+            ((basename, props_hash, lang_norm_hash), None)
         if trans:
-            Translations._cache[lang_hash] = trans # quicker next time
+            Translations._cache[(basename, props_hash, lang_hash)]\
+                = trans # faster next time
             return trans
-        props_dir = os.path.abspath(props_dir)
-        if os.path.isfile(props_dir):
-            props_dir = os.path.dirname(props_dir)
-        stop_searching = False
-        for lang in langs_norm:
-            while True:
-                props_file = os.path.join\
-                    (props_dir, basename + "_" + lang + ".properties")
-                try:
-                    with open(props_file) as fp:
-                        if trans:
-                            trans._add_fallback_unchecked(Translations(fp))
-                        else:
-                            trans = Translations(fp)
-                except IOError:
-                    pass
-                if lang == key_language:
-                    if trans:
-                        trans._add_fallback_unchecked(BaseTranslations())
-                    # else, returns BaseTranslation as result, see below
-                    stop_searching = True
-                    break;
-                lang_up = lang.rsplit("_", 1)[0]
-                if lang_up == lang:
-                    break
-                lang = lang_up
-            if stop_searching:
-                break
-        if trans:
-            trans._add_fallback_unchecked(BaseTranslations())
-        else:
-            trans = BaseTranslations()
-        Translations._cache[(basename, props_dir, lang_hash)] = trans    
-        Translations._cache[(basename, props_dir, lang_norm_hash)] = trans    
-        return trans
 
+        last_dir = len(dirs) - 1
+        trans = None
+        for i, d in enumerate(dirs):
+            t = _translation(basename, d, langs_norm,
+                                 ("en" if i == last_dir else None))
+            if not trans:
+                trans = t
+            else:
+                trans._add_fallback_unchecked(t)
+        
+        Translations._cache[(basename, props_hash, lang_hash)] = trans    
+        Translations._cache[(basename, props_hash, lang_norm_hash)] = trans    
+    return trans
+
+def _translation(basename, props_dir, languages, key_language=None):
+    """
+    See above. This function handles a single properties directory.
+    """
+    props_dir = os.path.abspath(props_dir)
+    if os.path.isfile(props_dir):
+        props_dir = os.path.dirname(props_dir)
+    stop_searching = False
+    trans = None
+    for lang in languages:
+        while True:
+            props_file = os.path.join\
+                (props_dir, basename + "_" + lang + ".properties")
+            try:
+                with open(props_file) as fp:
+                    if trans:
+                        trans._add_fallback_unchecked(Translations(fp))
+                    else:
+                        trans = Translations(fp)
+            except IOError:
+                pass
+            if lang == key_language:
+                if trans:
+                    trans._add_fallback_unchecked(BaseTranslations())
+                # else, returns BaseTranslation as result, see below
+                stop_searching = True
+                break;
+            lang_up = lang.rsplit("_", 1)[0]
+            if lang_up == lang:
+                break
+            lang = lang_up
+        if stop_searching:
+            break
+    if trans:
+        trans._add_fallback_unchecked(BaseTranslations())
+    else:
+        trans = BaseTranslations()
+    return trans
+
+        
+_props_files_pattern \
+    = re.compile("(_[a-z]{2}(_[a-zA-Z]{2}(_.*)?)?)\.properties$")
+
+def available_translations(basename, props_dir, key_language=None):
+    """
+    Returns the languages that are available for the given
+    *basename* in the given *props_dir* (which may be a list as
+    described for :func:`.translation`). The set is simply derived
+    by searching all files in the directory that match the
+    pattern "`^basename(_[a-z]{2}(_[a-zA-Z]{2}(_.*)?)?)\.properties$`"
+    and collecting the locale specifier part from the matches.
+    """
+    res = set()
+    if key_language:
+        res.add(key_language)
+    dirs = props_dir if isinstance(props_dir, list) else [props_dir]
+    for dir in dirs:
+        if os.path.isfile(dir):
+            dir = os.path.dirname(dir)
+        for f in os.listdir(dir):
+            if not f.startswith(basename):
+                continue
+            m = _props_files_pattern.match(f[len(basename):])
+            if not m:
+                continue
+            res.add(m.group(1)[1:])
+    return res

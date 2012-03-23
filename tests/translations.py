@@ -38,6 +38,10 @@ class Test(unittest.TestCase):
         self.assertEqual(trans.ugettext("unknown"), "unknown")
         self.assertEqual(trans.gettext("Result = "), "Ergebnis = ")
 
+    def testAvailable(self):
+        available = rbtranslations\
+            .available_translations("test", __file__, "en")
+        self.assertEqual(available, set(("en", "de", "de_AT", "fr")))
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testParse']
