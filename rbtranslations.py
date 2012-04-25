@@ -47,7 +47,7 @@ import re
 import os
 import threading
 
-__version__ = "0.9.2"
+__version__ = "0.9.3"
 
 __all__ = ["BaseTranslations", "Translations", 
            "translation", "available_translations"]
@@ -69,6 +69,23 @@ class BaseTranslations(object):
     """
 
     _fallback = None
+
+    def __init__(self, language=None):
+        """
+        Create a new object that represents the mapping for the given
+        language.
+        """
+        self._language = language
+
+    @property
+    def language(self):
+        """
+        Returns the language for which this translations provides
+        the mapping. May be ``None`` if the translations id the
+        fall back of returning the key as mapping and no language
+        was specified for the keys.
+        """
+        return self._language
 
     def add_fallback(self, fallback):
         """
@@ -124,7 +141,8 @@ class Translations(BaseTranslations):
     _cache_lock = threading.RLock()
     _cache = dict()
 
-    def __init__(self, fp, fallback=None):
+    def __init__(self, fp, fallback=None, language=None):
+        super(Translations, self).__init__(language)
         self._fallback = fallback
         self._translations = self._parse(fp)
         
@@ -257,7 +275,7 @@ def translation(basename, props_dir, languages, key_language=None):
     translation chain as described above, however, make them the last
     resort, preferring any match for the given *languages* over
     using the keys as translations. This behavior can be changed by
-    specifying the *key_language*. If specified, using the the keys as
+    specifying the *key_language*. If specified, using the keys as
     translations is considered equivalent to a file 
     "*basename.key_locale*.properties". If both a *key_language* is 
     specified and a file "*basename.key_language*.properties" exists,
@@ -302,7 +320,7 @@ def translation(basename, props_dir, languages, key_language=None):
         trans = None
         for i, d in enumerate(dirs):
             t = _translation(basename, d, langs_norm,
-                                 ("en" if i == last_dir else None))
+                             (key_language if i == last_dir else None))
             if not trans:
                 trans = t
             else:
@@ -330,14 +348,17 @@ def _translation(basename, props_dir, languages, key_language=None):
                     if trans:
                         trans._add_fallback_unchecked(Translations(fp))
                     else:
-                        trans = Translations(fp)
+                        trans = Translations(fp, language=lang)
             except IOError:
                 pass
+            # Use identity mapping instead (or in addition to) file?
             if lang == key_language:
                 if trans:
                     trans._add_fallback_unchecked(BaseTranslations())
-                # else, returns BaseTranslation as result, see below
-                stop_searching = True
+                else:
+                    trans = BaseTranslations(lang)
+                # We need no more fallbacks after identity mapping
+                stop_searching = True # double break
                 break;
             lang_up = lang.rsplit("_", 1)[0]
             if lang_up == lang:
@@ -346,7 +367,7 @@ def _translation(basename, props_dir, languages, key_language=None):
         if stop_searching:
             break
     if trans:
-        trans._add_fallback_unchecked(BaseTranslations())
+        trans._add_fallback_unchecked(BaseTranslations()) # last resort
     else:
         trans = BaseTranslations()
     return trans

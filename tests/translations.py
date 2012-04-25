@@ -30,8 +30,15 @@ class Test(unittest.TestCase):
         self.assertEqual(res._translations[u"π"], "pi")
         self.assertEqual(res._translations["umlaute"], u"äöüÄÖÜ")
 
+    def testFound(self):
+        trans = rbtranslations.translation("test", __file__, ["de_AT", "fr_FR"])
+        self.assertEqual(trans.language, "de_AT")
+        trans = rbtranslations.translation("test", __file__, ["fr_FR", "de_AT"])
+        self.assertEqual(trans.language, "fr")
+
     def testBundle(self):
         trans = rbtranslations.translation("test", __file__, ["de_AT", "fr_FR"])
+        self.assertEqual(trans.language, "de_AT")
         self.assertEqual(trans.gettext("pancake"), "Palatschinken")
         self.assertEqual(trans.ugettext("mobile phone"), "Handy")
         self.assertEqual(trans.ugettext("computer"), "ordinateur")
