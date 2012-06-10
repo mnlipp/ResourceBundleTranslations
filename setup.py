@@ -6,7 +6,10 @@ from setuptools import setup
 # README file and 2) it's easier to type in the README file than to put a raw
 # string in below ...
 def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+    try:
+        return open(os.path.join(os.path.dirname(__file__), fname)).read()
+    except:
+        return ""
 
 import rbtranslations
 
@@ -21,11 +24,12 @@ setup(
     url = "http://packages.python.org/rbtranslations",
     packages=['tests'],
     package_data={'tests': ['*.properties']},
-    py_modules=['rbtranslations'],
     long_description=read('pypi-overview.rst'),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Topic :: Software Development :: Internationalization",
         "License :: OSI Approved :: MIT License",
     ],
+    platforms='any',
+    py_modules=['rbtranslations'],
 )

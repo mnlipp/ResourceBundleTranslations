@@ -47,7 +47,7 @@ import re
 import os
 import threading
 
-__version__ = "0.9.3"
+__version__ = "0.9.3p2"
 
 __all__ = ["BaseTranslations", "Translations", 
            "translation", "available_translations"]
