@@ -1,0 +1,2 @@
+include pypi-overview.rst
+include tests/*.properties
