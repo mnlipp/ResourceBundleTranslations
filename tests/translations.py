@@ -19,16 +19,16 @@ class Test(unittest.TestCase):
         self.assertEqual(res._translations[" long key "], " long value ")
         self.assertEqual(res._translations["who"], "are you?")
         self.assertEqual(res._translations["Hello"], "there")
-        self.assertEqual(res._translations[u"π"], "pi")
-        self.assertEqual(res._translations["umlaute"], u"äöüÄÖÜ")
+        self.assertEqual(res._translations[u"π".encode("utf-8")], "pi")
+        self.assertEqual(res._translations["umlaute"], u"äöüÄÖÜ".encode("utf-8"))
 
     def testUtf8(self):
         inp_file = os.path.abspath \
             (os.path.join(os.path.dirname(__file__), "trans-utf8.properties"))
         with open(inp_file) as fp:
             res = Translations(fp)
-        self.assertEqual(res._translations[u"π"], "pi")
-        self.assertEqual(res._translations["umlaute"], u"äöüÄÖÜ")
+        self.assertEqual(res._translations[u"π".encode("utf-8")], "pi")
+        self.assertEqual(res._translations["umlaute"], u"äöüÄÖÜ".encode("utf-8"))
 
     def testFound(self):
         trans = rbtranslations.translation("test", __file__, ["de_AT", "fr_FR"])
@@ -44,6 +44,8 @@ class Test(unittest.TestCase):
         self.assertEqual(trans.ugettext("computer"), "ordinateur")
         self.assertEqual(trans.ugettext("unknown"), "unknown")
         self.assertEqual(trans.gettext("Result = "), "Ergebnis = ")
+        self.assertEqual(trans.ugettext(u"π"), u"pi")
+        self.assertEqual(trans.ugettext(u"π".encode("utf-8")), u"pi")
 
     def testAvailable(self):
         available = rbtranslations\

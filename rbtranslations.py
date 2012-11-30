@@ -42,12 +42,11 @@ Translations are obtained by calling :func:`rbtranslations.translation`.
 The returned :class:`rbtranslations.Translations` provide a subset
 of the methods provided by the built-in :class:`gettext.NullTranslations`.
 """
-import codecs
 import re
 import os
 import threading
 
-__version__ = "0.9.3p3"
+__version__ = "0.9.4"
 
 __all__ = ["BaseTranslations", "Translations", 
            "translation", "available_translations"]
@@ -119,16 +118,24 @@ class BaseTranslations(object):
     def ugettext(self, message):
         """
         Return the translated message if defined in the instance's
-        dictionary, else forward the call to the fallback (if set).
-        :class:`BaseTranslations` simply returns the message.
+        dictionary as unicode object, else forward the call to the fallback 
+        (if set). :class:`BaseTranslations` simply returns the message as 
+        unicode object.
         """
         if self._fallback:
             return self._fallback.ugettext(message)
         return unicode(message)
     
     def gettext(self, message):
-        """ An alias for ugettext. """
-        return self.ugettext(message)
+        """
+        Return the translated message if defined in the instance's
+        dictionary as utf-8 encoded string, else forward the call to 
+        the fallback (if set). :class:`BaseTranslations` simply returns 
+        the message.
+        """
+        if self._fallback:
+            return self._fallback.gettext(message)
+        return message
 
 
 class Translations(BaseTranslations):
@@ -167,10 +174,10 @@ class Translations(BaseTranslations):
             line = fp.readline()
             if line == "": # EOF
                 if key != "": # Save pending key/value
-                    res[key] = value
+                    res[key.encode("utf-8")] = value.encode("utf-8")
                 break;
             line_count += 1
-            line = codecs.decode(line, encoding)
+            line = line.decode(encoding)
             skip_ws = True # Always skip white space at beginning of line
             for c in line: # Now look at the individual characters
                 if unicode_digits > 0:
@@ -219,7 +226,7 @@ class Translations(BaseTranslations):
                         continue
                     if c == '\n': # not escaped, end of key/value pair
                         if key != "":
-                            res[key] = value
+                            res[key.encode("utf-8")] = value.encode("utf-8")
                             key = ""
                             value = ""
                             pending_ws = ""
@@ -235,13 +242,29 @@ class Translations(BaseTranslations):
 
     def ugettext(self, message):
         """
-        Return the translated message if defined in the properties
-        file read by this instance, else forward the call to the 
-        fallback (if set).
+        Return the translated message if defined in the instance's
+        dictionary as unicode object, else forward the call to the fallback 
+        (if set). :class:`BaseTranslations` simply returns the message as 
+        unicode object.
+        """
+        if isinstance(message, unicode):
+            msg = message.encode("utf-8")
+        else:
+            msg = message
+        if self._translations.has_key(msg):
+            return unicode(self._translations[msg], "utf-8")
+        return super(Translations, self).ugettext(message)
+
+    def gettext(self, message):
+        """
+        Return the translated message if defined in the instance's
+        dictionary as utf-8 encoded string, else forward the call to 
+        the fallback (if set). :class:`BaseTranslations` simply returns 
+        the message.
         """
         if self._translations.has_key(message):
             return self._translations[message]
-        return super(Translations, self).ugettext(message)
+        return super(Translations, self).gettext(message)
 
 
 def translation(basename, props_dir, languages, key_language=None):
@@ -337,20 +360,11 @@ def _translation(basename, props_dir, languages, key_language=None):
     props_dir = os.path.abspath(props_dir)
     if os.path.isfile(props_dir):
         props_dir = os.path.dirname(props_dir)
-    stop_searching = False
     trans = None
     for lang in languages:
         while True:
-            props_file = os.path.join\
-                (props_dir, basename + "_" + lang + ".properties")
-            try:
-                with open(props_file) as fp:
-                    if trans:
-                        trans._add_fallback_unchecked(Translations(fp))
-                    else:
-                        trans = Translations(fp, language=lang)
-            except IOError:
-                pass
+            trans = _try_file \
+                (props_dir, basename + "_" + lang + ".properties", lang, trans)
             # Use identity mapping instead (or in addition to) file?
             if lang == key_language:
                 if trans:
@@ -358,20 +372,29 @@ def _translation(basename, props_dir, languages, key_language=None):
                 else:
                     trans = BaseTranslations(lang)
                 # We need no more fallbacks after identity mapping
-                stop_searching = True # double break
-                break;
+                return trans
             lang_up = lang.rsplit("_", 1)[0]
             if lang_up == lang:
                 break
             lang = lang_up
-        if stop_searching:
-            break
+    # Finally try properties file without language specification
+    trans = _try_file(props_dir, basename + ".properties", None, trans)
     if trans:
         trans._add_fallback_unchecked(BaseTranslations()) # last resort
     else:
         trans = BaseTranslations()
     return trans
 
+def _try_file (props_dir, props_file, lang, trans):
+    try:
+        with open(os.path.join(props_dir, props_file)) as fp:
+            if trans:
+                trans._add_fallback_unchecked(Translations(fp))
+            else:
+                trans = Translations(fp, language=lang)
+    except IOError:
+        pass
+    return trans
         
 _props_files_pattern \
     = re.compile("(_[a-z]{2}(_[a-zA-Z]{2}(_.*)?)?)\.properties$")
