@@ -46,7 +46,7 @@ import re
 import os
 import threading
 
-__version__ = "0.9.4"
+__version__ = "0.9.5"
 
 __all__ = ["BaseTranslations", "Translations", 
            "translation", "available_translations"]
@@ -361,18 +361,16 @@ def _translation(basename, props_dir, languages, key_language=None):
     if os.path.isfile(props_dir):
         props_dir = os.path.dirname(props_dir)
     trans = None
+    use_key_as_lang = False
     for lang in languages:
         while True:
             trans = _try_file \
                 (props_dir, basename + "_" + lang + ".properties", lang, trans)
             # Use identity mapping instead (or in addition to) file?
             if lang == key_language:
-                if trans:
-                    trans._add_fallback_unchecked(BaseTranslations())
-                else:
-                    trans = BaseTranslations(lang)
+                use_key_as_lang = True
                 # We need no more fallbacks after identity mapping
-                return trans
+                break;
             lang_up = lang.rsplit("_", 1)[0]
             if lang_up == lang:
                 break
@@ -382,7 +380,10 @@ def _translation(basename, props_dir, languages, key_language=None):
     if trans:
         trans._add_fallback_unchecked(BaseTranslations()) # last resort
     else:
-        trans = BaseTranslations()
+        if use_key_as_lang:
+            trans = BaseTranslations(key_language)
+        else:
+            trans = BaseTranslations()
     return trans
 
 def _try_file (props_dir, props_file, lang, trans):
